@@ -1,0 +1,58 @@
+service: checkrun-test
+frameworkVersion: "3"
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  region: ap-northeast-1
+  profile: private
+
+functions:
+  checkrun-test:
+    handler: src/index.handler
+    environment:
+      WEBHOOK_SECRET: ${self:custom.ssmWebhookSecretPath} # ちなみに復号の ~true 記法はv3で廃止された 
+      GITHUB_APP_ID: ${self:custom.ssmGithubAppIdPath}
+      GITHUB_APP_PRIVATE_KEY: ${self:custom.ssmGithubAppPrivateKeyPath}
+    url: true # 関数URLを有効化
+
+resources:
+  Resources:
+    checkRunLambdaRole:
+      Type: AWS::IAM::Role
+      Properties:
+        RoleName: checkrun-test-lambda-role
+        AssumeRolePolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                Service:
+                  - lambda.amazonaws.com
+              Action:
+                - sts:AssumeRole
+        ManagedPolicyArns:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+          # - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+        Policies:
+          - PolicyName: checkrun-test-lambda-policy
+            PolicyDocument:
+              Version: "2012-10-17"
+              Statement:
+                - Effect: Allow
+                  Action:
+                    - ssm:GetParameter
+                  Resource:
+                    - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmWebhookSecretPath}
+                    - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmGithubAppIdPath}
+                    - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmGithubAppPrivateKeyPath}
+                - Effect: Allow
+                  Action:
+                    - kms:Decrypt
+                  Resource:
+                    - arn:aws:kms:${self:provider.region}:*:alias/aws/ssm # attention: using managed key
+
+custom:
+  ssmWebhookSecretPath: /CHECK_RUN_TEST/WEBHOOK_SECRET
+  ssmGithubAppIdPath: /CHECK_RUN_TEST/GITHUB_APP_ID
+  ssmGithubAppPrivateKeyPath: /CHECK_RUN_TEST/GITHUB_APP_PRIVATE_KEY
