@@ -6,6 +6,8 @@ provider:
   runtime: nodejs18.x
   region: ap-northeast-1
   profile: private
+  stage: dev
+  logRetentionInDays: 3
 
 functions:
   checkrun-test:
@@ -13,8 +15,9 @@ functions:
     environment:
       WEBHOOK_SECRET: ${self:custom.ssmWebhookSecretPath} # ちなみに復号の ~true 記法はv3で廃止された 
       GITHUB_APP_ID: ${self:custom.ssmGithubAppIdPath}
-      GITHUB_APP_PRIVATE_KEY: ${self:custom.ssmGithubAppPrivateKeyPath}
+      GITHUB_APP_PRIVATE_KEY: ${self:custom.ssmGithubAppPemFilePath}
     url: true # 関数URLを有効化
+    role: checkRunLambdaRole # 作成したロールを指定
 
 resources:
   Resources:
@@ -45,7 +48,7 @@ resources:
                   Resource:
                     - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmWebhookSecretPath}
                     - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmGithubAppIdPath}
-                    - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmGithubAppPrivateKeyPath}
+                    - arn:aws:ssm:${self:provider.region}:*:parameter${self:custom.ssmGithubAppPemFilePath}
                 - Effect: Allow
                   Action:
                     - kms:Decrypt
@@ -55,4 +58,4 @@ resources:
 custom:
   ssmWebhookSecretPath: /CHECK_RUN_TEST/WEBHOOK_SECRET
   ssmGithubAppIdPath: /CHECK_RUN_TEST/GITHUB_APP_ID
-  ssmGithubAppPrivateKeyPath: /CHECK_RUN_TEST/GITHUB_APP_PRIVATE_KEY
+  ssmGithubAppPemFilePath: /CHECK_RUN_TEST/GITHUB_APP_PEM_FILE
