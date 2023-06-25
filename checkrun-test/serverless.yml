@@ -19,6 +19,7 @@ functions:
     url: true # 関数URLを有効化
     role: checkRunLambdaRole # 作成したロールを指定
     timeout: 10 # default 6
+    memorySize: 256 # default 1024
 
 resources:
   Resources:
