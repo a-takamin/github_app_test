@@ -9,14 +9,14 @@ class GhEvent {
   }
 }
 
-class NotHandleEvent extends GhEvent {
+class NotHandleGhEvent extends GhEvent {
   // @Override
   async handle_action(action, body) {
-    console.log(`${action} in not handle event is not handled in this app.`)
+    return
   }
 }
 
-class CheckSuiteEvent extends GhEvent {
+class CheckSuiteGhEvent extends GhEvent {
   constructor() {
     super()
     this.actions = {
@@ -30,14 +30,14 @@ class CheckSuiteEvent extends GhEvent {
       await this.actions[action].handle(body)
       return
     }
-    console.log(`${action} in check suit event is not handled in this app.`)
+    console.log(`${action} in check_suit event is not handled in this app.`)
   }
 }
 
 class GhEventMapper {
   constructor() {
     this.gh_events = {
-      check_suite: new CheckSuiteEvent(),
+      check_suite: new CheckSuiteGhEvent(),
     }
   }
 
@@ -45,8 +45,7 @@ class GhEventMapper {
     if (gh_event in this.gh_events) {
       return this.gh_events[gh_event]
     }
-    console.log(`${gh_event} is not handled in this app.`)
-    return new NotHandleEvent()
+    return new NotHandleGhEvent()
   }
 }
 
