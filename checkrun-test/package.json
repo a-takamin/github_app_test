@@ -5,13 +5,14 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "fmt": "prettier --write ."
+    "lint": "eslint --fix -- ."
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "prettier": "^2.8.8"
+    "@cybozu/eslint-config": "^20.0.1",
+    "eslint": "^8.43.0"
   },
   "dependencies": {
     "@aws-sdk/client-ssm": "^3.358.0",
