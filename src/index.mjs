@@ -34,10 +34,29 @@ class CheckSuiteGhEvent extends GhEvent {
   }
 }
 
+class CheckRunGhEvent extends GhEvent {
+  constructor() {
+    super()
+    this.actions = {
+      requested_action: new CheckRunRequestedAction(),
+    }
+  }
+
+  // @Override
+  async handle_action(action, body) {
+    if (action in this.actions) {
+      await this.actions[action].handle(body)
+      return
+    }
+    console.log(`${action} in check_run event is not handled in this app.`)
+  }
+}
+
 class GhEventMapper {
   constructor() {
     this.gh_events = {
       check_suite: new CheckSuiteGhEvent(),
+      check_run: new CheckRunGhEvent(),
     }
   }
 
@@ -58,22 +77,10 @@ class GhAction {
 class CheckSuiteRequestedAction extends GhAction {
   // @Override
   async handle(body) {
-    const gh_app_id = await getSSMParameter(process.env.GITHUB_APP_ID)
-    const gh_app_private_key = await getSSMParameter(process.env.GITHUB_APP_PRIVATE_KEY)
-
     // installation access token(特定のGitHub API操作トークン)の発行を行う
     const installation_id = body.installation.id
-    const jwtoken = await create_jwt(gh_app_id, gh_app_private_key)
-
-    let res
-    try {
-      // .then().catch()ではなくawaitを使おうと思うので、try-catchでエラーをキャッチする
-      res = await get_installation_access_token(installation_id, jwtoken)
-    } catch (e) {
-      console.error(e)
-      return
-    }
-    const inst_access_token = JSON.parse(res).token
+    const jwtoken = await create_jwt()
+    const inst_access_token = await get_installation_access_token(installation_id, jwtoken)
 
     // GitHub APIを叩いて、Check Runsを作成する
     const owner = body.repository.owner.login
@@ -100,7 +107,7 @@ class CheckSuiteRequestedAction extends GhAction {
       completed_at: new Date().toISOString(),
       output: {
         title: "テストチェックラン！！",
-        summary: "これはただのチェックランのテストです",
+        summary: "これはただのチェックランのテスト（action_required）です",
         text: "チェックランとGitHub Appの勉強のために作りました",
         annotations: [
           {
@@ -149,6 +156,53 @@ class CheckSuiteRequestedAction extends GhAction {
   }
 }
 
+class CheckRunRequestedAction extends GhAction {
+  // @Override
+  async handle(body) {
+    // installation access token(特定のGitHub API操作トークン)の発行を行う
+    const installation_id = body.installation.id
+    const jwtoken = await create_jwt()
+    const inst_access_token = await get_installation_access_token(installation_id, jwtoken)
+
+    // GitHub APIを叩いて、Check Runsを更新する
+    const owner = body.repository.owner.login
+    const repo = body.repository.name
+    const check_run_id = body.check_run.id
+
+    try {
+      const resp = await this.update_check_run(inst_access_token, owner, repo, check_run_id)
+      console.log(resp)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  async update_check_run(inst_access_token, owner, repo, check_run_id) {
+    const body = JSON.stringify({
+      conclusion: "success", // success, failure, neutral, cancelled, timed_out, action_required, stale
+      output: {
+        title: "テストチェックラン！！",
+        summary: "これはただのチェックランのテスト（success）です",
+        text: "チェックランとGitHub Appの勉強のために作りました",
+      },
+    })
+
+    const options = {
+      hostname: "api.github.com",
+      port: 443,
+      path: `/repos/${owner}/${repo}/check-runs/${check_run_id}`,
+      method: "PATCH",
+      headers: {
+        Accept: "application/vnd.github+json",
+        "User-Agent": "checkrun-test",
+        "X-GitHub-Api-Version": "2022-11-28",
+        Authorization: `Bearer ${inst_access_token}`,
+      },
+    }
+    return send_req(options, body)
+  }
+}
+
 const verify_signature = (signature, body, secret) => {
   const digest = crypto.createHmac("sha256", secret).update(body).digest("hex")
   const checksum = `sha256=${digest}`
@@ -157,7 +211,9 @@ const verify_signature = (signature, body, secret) => {
   }
 }
 
-const create_jwt = async (app_id, private_key) => {
+const create_jwt = async () => {
+  const app_id = await getSSMParameter(process.env.GITHUB_APP_ID)
+  const private_key = await getSSMParameter(process.env.GITHUB_APP_PRIVATE_KEY)
   const payload = {
     iat: Math.floor(Date.now() / 1000) - 60 * 1, // 時間のズレを考慮して1分前(公式推奨)
     exp: Math.floor(Date.now() / 1000) + 60 * 3, // 3 mins
@@ -182,14 +238,19 @@ const get_installation_access_token = async (installation_id, jwtoken) => {
       installation_id: installation_id,
     },
   }
-
-  return send_req(options, "")
+  try {
+    const res = await send_req(options, "")
+    return JSON.parse(res).token
+  } catch (e) {
+    console.error(e)
+  }
+  return ""
 }
 
 const send_req = async (options, body) => {
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
-      console.log(`Status Code: ${res.statusCode}`)
+      console.log(`${options.path} Status Code: ${res.statusCode}`)
       let resp_data = "" // initialized as string
       res.on("data", (chunk) => {
         resp_data += chunk

@@ -8,5 +8,5 @@
 - Systems ManagerのParameter Storeのパラメータの作成（3個）
 - Check Runsの作成
 
-## 手順
-
+## 詳細
+https://zenn.dev/articles/569875e8346948
